@@ -181,6 +181,31 @@ fail:
 }
 
 bool
+get_security_file_path(std::string & security_file_path,
+                       const char * security_file_name,
+                       const char * node_secure_root) {
+  std::string file_prefix("file://");
+
+  rcutils_allocator_t allocator = rcutils_get_default_allocator();
+  char * file_path = rcutils_join_path(node_secure_root, security_file_name, allocator);
+
+  if (!file_path) {
+    return false;
+  }
+
+  if (rcutils_is_readable(file_path)) {
+    security_file_path = file_prefix + std::string(file_path);
+  } else {
+    allocator.deallocate(file_path, allocator.state);
+    return false;
+  }
+
+  allocator.deallocate(file_path, allocator.state);
+
+  return true;
+}
+
+bool
 get_security_file_paths(
   std::array<std::string, 6> & security_files_paths, const char * node_secure_root)
 {
@@ -191,52 +216,12 @@ get_security_file_paths(
   };
   size_t num_files = sizeof(file_names) / sizeof(char *);
 
-  std::string file_prefix("file://");
-
   for (size_t i = 0; i < num_files; i++) {
-    rcutils_allocator_t allocator = rcutils_get_default_allocator();
-    char * file_path = rcutils_join_path(node_secure_root, file_names[i], allocator);
 
-    if (!file_path) {
+    if (!get_security_file_path(security_files_paths[i], file_names[i], node_secure_root)) {
       return false;
     }
-
-    if (rcutils_is_readable(file_path)) {
-      security_files_paths[i] = file_prefix + std::string(file_path);
-    } else {
-      allocator.deallocate(file_path, allocator.state);
-      return false;
-    }
-
-    allocator.deallocate(file_path, allocator.state);
   }
-
-  return true;
-}
-
-bool
-get_security_logging_file_path(
-    std::string & security_logging_file_path, const char * node_secure_root)
-{
-  const char * file_names = "logging.xml";
-
-  std::string file_prefix("file://");
-
-  rcutils_allocator_t allocator = rcutils_get_default_allocator();
-  char * file_path = rcutils_join_path(node_secure_root, file_names, allocator);
-
-  if (!file_path) {
-    return false;
-  }
-
-  if (rcutils_is_readable(file_path)) {
-    security_logging_file_path = file_prefix + std::string(file_path);
-  } else {
-    allocator.deallocate(file_path, allocator.state);
-    return false;
-  }
-
-  allocator.deallocate(file_path, allocator.state);
 
   return true;
 }
@@ -362,7 +347,8 @@ __rmw_create_node(
           "dds.sec.access.builtin.Access-Permissions.permissions", security_files_paths[5]));
 
       std::string security_logging_file_path;
-      if (get_security_logging_file_path(security_logging_file_path, security_options->security_root_path)) {
+      if (get_security_file_path(security_logging_file_path,
+                                 "logging.xml", security_options->security_root_path)) {
 
         std::string distribute, event_log_level, log_file;
         if (load_security_logging_options(distribute, event_log_level, log_file, security_logging_file_path)) {
