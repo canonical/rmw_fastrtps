@@ -218,7 +218,7 @@ bool
 get_security_logging_file_path(
     std::string & security_logging_file_path, const char * node_secure_root)
 {
-  const char * file_names = {"security_logging.xml"};
+  const char * file_names = "logging.xml";
 
   std::string file_prefix("file://");
 
