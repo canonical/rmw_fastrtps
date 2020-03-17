@@ -214,6 +214,40 @@ get_security_file_paths(
   return true;
 }
 
+bool
+get_security_logging_file_path(
+    std::string & security_logging_file_path, const char * node_secure_root)
+{
+  const char * file_names = {"security_logging.xml"};
+
+  std::string file_prefix("file://");
+
+  rcutils_allocator_t allocator = rcutils_get_default_allocator();
+  char * file_path = rcutils_join_path(node_secure_root, file_names, allocator);
+
+  if (!file_path) {
+    return false;
+  }
+
+  if (rcutils_is_readable(file_path)) {
+    security_logging_file_path = file_prefix + std::string(file_path);
+  } else {
+    allocator.deallocate(file_path, allocator.state);
+    return false;
+  }
+
+  allocator.deallocate(file_path, allocator.state);
+
+  return true;
+}
+
+bool
+load_security_logging_options(std::string& distribute, std::string& event_log_level,
+                              std::string& log_file, const std::string& security_logging_file_path) {
+  //TODO(artivis): well, todo.
+  return true;
+}
+
 rmw_node_t *
 __rmw_create_node(
   const char * identifier,
@@ -326,6 +360,26 @@ __rmw_create_node(
       property_policy.properties().emplace_back(
         Property(
           "dds.sec.access.builtin.Access-Permissions.permissions", security_files_paths[5]));
+
+      std::string security_logging_file_path;
+      if (get_security_logging_file_path(security_logging_file_path, security_options->security_root_path)) {
+
+        std::string distribute, event_log_level, log_file;
+        if (load_security_logging_options(distribute, event_log_level, log_file, security_logging_file_path)) {
+          property_policy.properties().emplace_back(
+            Property("dds.sec.log.plugin", "builtin.DDS_LogTopic"));
+          property_policy.properties().emplace_back(
+            Property("dds.sec.log.builtin.DDS_LogTopic.distribute", distribute));
+          property_policy.properties().emplace_back(
+            Property("dds.sec.log.builtin.DDS_LogTopic.event_log_level", event_log_level));
+          property_policy.properties().emplace_back(
+            Property("dds.sec.log.builtin.DDS_LogTopic.log_file", log_file));
+        }
+        else {
+          RMW_SET_ERROR_MSG("Could not load security logging file!");
+          return nullptr;
+        }
+      }
 
       participantAttrs.rtps.properties = property_policy;
     } else if (security_options->enforce_security) {
